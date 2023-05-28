@@ -1,5 +1,5 @@
 # PasteSend
-This is a script to automatically upload to/download from PasteBin without using their developer API. The developer API is nice; however, it requires registering for a key which is associated with your uploads, which you may or may not want.
+This is a script to automatically upload to/download from PasteBin without using their developer API. The developer API is nice; however, it requires registering for a key which is associated with your uploads, which you may or may not want. Alternatively, if you're interested in using the compress/encryption/base64 piece, the script allows you to either output to screen for easy copying or into a file.
 
 # Interest
 I was interested in creating this script because I've had times while conducting malware analysis where I wanted to get the data I'd collected or generated out of my VM safely. I was often relatively certain that I either hadn't activated the malware or had neutered it, but out of an abondance of caution I didn't want to use my credentials on any sites. Pastebin is a good option for this, but then your notes and research are exposed for the timeframe that the data is on the site.
