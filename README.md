@@ -15,6 +15,7 @@ I was interested in creating this script because I've had times while conducting
 3) Test on other platforms - I only tested on linux (specifically a Kali VM). The only problematic feature is selenium itself, which theoretically plays nice with other operating systems but again I didn't test that.
 
 # Resources
+* Video overview: https://youtu.be/40Tnvr04-jE
 * Selenium's documentation - https://www.selenium.dev/
 * Pastebin's API which we aren't using - https://pastebin.com/doc_api
 * Pastebin's FAQ which lays out how you might get blacklisted/deleted by using this script - https://pastebin.com/faq
