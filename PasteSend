@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 
 '''
-# This script requires selenium and pycryptodome
+# This script requires the following extras:
 pip3 install selenium
 pip3 install pycryptodome
+pip3 install pyperclip
+pip3 install random-word
 
 # Pastebin allows 10 pastes in 24 hours before it blacklists you 24 hours
 # It may also blacklist you based upon "suspicious activity", which this may be
@@ -18,6 +20,8 @@ import tempfile
 import os.path
 import zipfile
 import requests
+
+from random_word import Wordnik
 import pyperclip
 
 from selenium import webdriver
@@ -118,12 +122,17 @@ def get_file(outfile, urlid, generate, key, iv, base, header):
         f.write(plain_text)
 
 def make_header(header_len):
-    word_site = 'https://www.mit.edu/~ecprice/wordlist.10000'
-    response = requests.get(word_site)
-    wordlist = response.content.splitlines()
     outstr = ''
+    wordnik = Wordnik()
+    wordlist = []
     while len(outstr) < header_len:
-        outstr += ' {}'.format(random.choice(wordlist).decode('utf8'))
+        if not wordlist:
+            try:
+                wordlist.extend(wordnik.get_random_words())
+            except:
+                continue
+        word = wordlist.pop()
+        outstr += ' {}'.format(word)
     return outstr[:header_len-1] + ' '
 
 def send_file(filename, generate, key, iv, base, header):
