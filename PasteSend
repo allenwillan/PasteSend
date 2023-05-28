@@ -46,13 +46,14 @@ def get_file(outfile, urlid, generate, key, iv, base, header):
     print('[+] Using iv:  {}'.format(binascii.hexlify(iv)))
 
     if generate != False:
-        if not os.path.exists(generate[0]):
-            print('[+] Reading base64 from cli')
-            b64text = generate[0]
-        else:
+        if generate and os.path.exists(generate[0]):
             print('[+] Reading base64 from: {}'.format(generate[0]))
             with open(generate[0], 'r') as f:
                 b64text = f.read()
+        else:
+            print('[+] Reading base64 from cli')
+            b64text = generate[0]
+            
     else:
         url = 'https://pastebin.com/{}'.format(urlid)
         print('[+] Fetching {}'.format(url))
