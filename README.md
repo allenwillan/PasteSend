@@ -2,10 +2,10 @@
 This is a script to automatically upload to/download from PasteBin without using their developer API. The developer API is nice; however, it requires registering for a key which is associated with your uploads, which you may or may not want.
 
 # Interest
-I was interested in creating this script because I've had times while conducting malware analysis where I wanted to get the data I'd collected or generated out of my VM safely. I was often relatively certain that I either hadn't activated the malware or had neutered it, but out of an abandance of caution I didn't want to use my credentials on any sites. Pastebin is a good option for this, but then your notes and research are exposed for the timeframe that the data is on the site.
+I was interested in creating this script because I've had times while conducting malware analysis where I wanted to get the data I'd collected or generated out of my VM safely. I was often relatively certain that I either hadn't activated the malware or had neutered it, but out of an abondance of caution I didn't want to use my credentials on any sites. Pastebin is a good option for this, but then your notes and research are exposed for the timeframe that the data is on the site.
 
 # Three Main Ideas
-1) Automate - Humans are stupid, and so is user input. The script tries to minimize problems by automating interacting with the Pastebin UI for both send and get functions.
+1) Automate - Humans are stupid, and so is user input. The script tries to minimize problems by automating interacting with the Pastebin UI for both send and get functions, and for the various wrapping steps.
 2) Safety/Privacy - Although I've never used Pasetebin to transfer anything sensitive, I still don't want other people to access what I upload. The data that you're transfering is zipped for size, AES encrypted for security (there is a default garbage key/iv, but you can either enter your own or use -random to generate using random.getbytes), and base64 encoded to paste safely. The script additionally enables Burn After Read mode in Pastebin, which theoretically destroys the data after read and doesn't list the upload in the public area.
 3) Verification - Understanding why and how something might have gone wrong is important. The script outputs hashes at three points during the send and get functions to allow the user to verify the data: an MD5 of the raw data read from disk; an MD5 of the zipped data; and n MD5 of the base64 data.
 
