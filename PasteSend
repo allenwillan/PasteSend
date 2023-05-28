@@ -1,10 +1,9 @@
 #!/usr/bin/python3
 
 '''
-# This script requires selenium, pycryptodome, and pyperclip
+# This script requires selenium and pycryptodome
 pip3 install selenium
 pip3 install pycryptodome
-pip3 install pyperclip
 
 # Pastebin allows 10 pastes in 24 hours before it blacklists you 24 hours
 # It may also blacklist you based upon "suspicious activity", which this may be
@@ -18,6 +17,7 @@ import hashlib
 import tempfile
 import os.path
 import zipfile
+import requests
 import pyperclip
 
 from selenium import webdriver
@@ -32,206 +32,240 @@ from Crypto.Util.Padding import pad, unpad
 CLEAN_KEY = ['PLZCHANGEMEFIRSTplzzitsreallybad']
 CLEAN_IV = ['REALLYPLZZCHANGE']
 
-def get_file(outfile, urlid, generate, key, iv):
-	if not isinstance(key, bytes):
-		key = key.encode('ascii')
-	if not isinstance(iv, bytes):
-		iv = iv.encode('ascii')
+def get_file(outfile, urlid, generate, key, iv, base, header):
+    if not isinstance(key, bytes):
+        key = key.encode('ascii')
+    if not isinstance(iv, bytes):
+        iv = iv.encode('ascii')
 
-	print('[+] Using key: {}'.format(binascii.hexlify(key)))
-	print('[+] Using iv:  {}'.format(binascii.hexlify(iv)))
+    print('[+] Using key: {}'.format(binascii.hexlify(key)))
+    print('[+] Using iv:  {}'.format(binascii.hexlify(iv)))
 
-	if generate != False:
-		if not os.path.exists(generate[0]):
-			print('[+] Reading base64 from cli')
-			b64text = generate[0]
-		else:
-			print('[+] Reading base64 from: {}'.format(generate[0]))
-			with open(generate[0], 'r') as f:
-				b64text = f.read()
-	else:
-		url = 'https://pastebin.com/{}'.format(urlid)
-		print('[+] Fetching {}'.format(url))
+    if generate != False:
+        if not os.path.exists(generate[0]):
+            print('[+] Reading base64 from cli')
+            b64text = generate[0]
+        else:
+            print('[+] Reading base64 from: {}'.format(generate[0]))
+            with open(generate[0], 'r') as f:
+                b64text = f.read()
+    else:
+        url = 'https://pastebin.com/{}'.format(urlid)
+        print('[+] Fetching {}'.format(url))
 
-		# Spawn Chrome to inteact with pastebin
-		driver = webdriver.Chrome()
-		driver.get(url)
-		driver.implicitly_wait(0.5)
-		#Check to make sure we're talking to pastebin
-		title = driver.title
-		assert title == 'Pastebin.com - Burn After Read paste'
+        # Spawn Chrome to inteact with pastebin
+        driver = webdriver.Chrome()
+        driver.get(url)
+        driver.implicitly_wait(0.5)
+        #Check to make sure we're talking to pastebin
+        title = driver.title
+        assert title == 'Pastebin.com - Burn After Read paste'
 
-		# Find the "Ok, show me the paste" button
-		buttons = driver.find_elements(by=By.CSS_SELECTOR, value="button")
-		submitbutton = None
-		for i in buttons:
-			try:
-				if i.text == 'Ok, show me the paste':
-					submitbutton = i
-			except:
-				continue
-		submitbutton.submit()
-		
-		# Retrieve the encoded text
-		b64text = driver.find_elements(by=By.CSS_SELECTOR, value=".de1")[0].text
+        # Find the "Ok, show me the paste" button
+        buttons = driver.find_elements(by=By.CSS_SELECTOR, value="button")
+        submitbutton = None
+        for i in buttons:
+            try:
+                if i.text == 'Ok, show me the paste':
+                    submitbutton = i
+            except:
+                continue
+        submitbutton.submit()
+        
+        # Retrieve the encoded text
+        b64text = driver.find_elements(by=By.CSS_SELECTOR, value=".de1")[0].text
 
-		# Kill Chrome
-		driver.quit()
+        # Kill Chrome
+        driver.quit()
 
-	# Base64 decode the text
-	b64text = b64text.encode()
-	print('[+] MD5 of b64 data: {}'.format(hashlib.md5(b64text).hexdigest()))
-	cipher_text = base64.b64decode(b64text)
-	print('[+] Encoded text:    {} characters'.format(len(b64text)))
+    if header:
+        print('[+] Removing first {} characters of the header'.format(header))
+        b64text = b64text[header:]
 
-	# Decrypt with the AES key/iv
-	aes_dec = AES.new(key, AES.MODE_CBC, iv=iv)
-	zipdata = unpad(aes_dec.decrypt(cipher_text), AES.block_size)
-	print('[+] MD5 of zip data: {}'.format(hashlib.md5(zipdata).hexdigest()))
-	print('[+] Zip data:        {} bytes'.format(len(zipdata)))
+    # Base64 decode the text
+    b64text = b64text.encode()
+    print('[+] MD5 of b{} data: {}'.format(base, hashlib.md5(b64text).hexdigest()))
+    if base == 64:
+        cipher_text = base64.b64decode(b64text)
+    elif base == 85:
+        cipher_text = base64.b85decode(b64text)
+    elif base == 32:
+        cipher_text = base64.b32decode(b64text)
+    elif base == 16:
+        cipher_text = base64.b16decode(b64text)
+    print('[+] Encoded text:    {} characters'.format(len(b64text)))
 
-	# Create temp zip file
-	with tempfile.TemporaryDirectory() as tdir:
-		with open(os.path.join(tdir,'tpzip'), 'wb') as tp:
-			tp.write(zipdata)
+    # Decrypt with the AES key/iv
+    aes_dec = AES.new(key, AES.MODE_CBC, iv=iv)
+    zipdata = unpad(aes_dec.decrypt(cipher_text), AES.block_size)
+    print('[+] MD5 of zip data: {}'.format(hashlib.md5(zipdata).hexdigest()))
+    print('[+] Zip data:        {} bytes'.format(len(zipdata)))
 
-		with zipfile.ZipFile(os.path.join(tdir,'tpzip'), 'r', compression=zipfile.ZIP_LZMA) as tpzip:
-			plain_text = tpzip.read('temp')
+    # Create temp zip file
+    with tempfile.TemporaryDirectory() as tdir:
+        with open(os.path.join(tdir,'tpzip'), 'wb') as tp:
+            tp.write(zipdata)
 
-			print('[+] MD5 of raw data: {}'.format(hashlib.md5(plain_text).hexdigest()))
-	print('[+] Original text:   {} bytes'.format(len(plain_text)))
+        with zipfile.ZipFile(os.path.join(tdir,'tpzip'), 'r', compression=zipfile.ZIP_LZMA) as tpzip:
+            plain_text = tpzip.read('temp')
 
-	# Write to output file
-	print('[+] Writing {}'.format(outfile))
-	with open(outfile, 'wb') as f:
-		f.write(plain_text)
+            print('[+] MD5 of raw data: {}'.format(hashlib.md5(plain_text).hexdigest()))
+    print('[+] Original text:   {} bytes'.format(len(plain_text)))
 
-def send_file(filename, generate, key, iv):
-	if not isinstance(key, bytes):
-		key = key.encode('ascii')
-	if not isinstance(iv, bytes):
-		iv = iv.encode('ascii')
+    # Write to output file
+    print('[+] Writing {}'.format(outfile))
+    with open(outfile, 'wb') as f:
+        f.write(plain_text)
 
-	print('[+] Using key: {}'.format(binascii.hexlify(key)))
-	print('[+] Using iv:  {}'.format(binascii.hexlify(iv)))
-	
-	# Open input file
-	print('[+] Reading {}'.format(filename))
-	with open(filename, 'rb') as f:
-		# Read all contents into memory
-		rawdata = f.read()
+def make_header(header_len):
+    word_site = 'https://www.mit.edu/~ecprice/wordlist.10000'
+    response = requests.get(word_site)
+    wordlist = response.content.splitlines()
+    outstr = ''
+    while len(outstr) < header_len:
+        outstr += ' {}'.format(random.choice(wordlist).decode('utf8'))
+    return outstr[:header_len-1] + ' '
 
-	# Output the MD5 for verification
-	print('[+] MD5 of raw data: {}'.format(hashlib.md5(rawdata).hexdigest()))
-	print('[+] Original text:   {} bytes'.format(len(rawdata)))
+def send_file(filename, generate, key, iv, base, header):
+    if not isinstance(key, bytes):
+        key = key.encode('ascii')
+    if not isinstance(iv, bytes):
+        iv = iv.encode('ascii')
 
-	# Create temp zip file
-	with tempfile.TemporaryDirectory() as tdir:
-		with zipfile.ZipFile(os.path.join(tdir,'tpzip'), 'w', compression=zipfile.ZIP_LZMA) as tpzip:
-			tpzip.write(filename, arcname='temp')
+    print('[+] Using key: {}'.format(binascii.hexlify(key)))
+    print('[+] Using iv:  {}'.format(binascii.hexlify(iv)))
+    
+    # Open input file
+    print('[+] Reading {}'.format(filename))
+    with open(filename, 'rb') as f:
+        # Read all contents into memory
+        rawdata = f.read()
 
-		with open(os.path.join(tdir,'tpzip'), 'rb') as tp:
-			zipdata = tp.read()
+    # Output the MD5 for verification
+    print('[+] MD5 of raw data: {}'.format(hashlib.md5(rawdata).hexdigest()))
+    print('[+] Original text:   {} bytes'.format(len(rawdata)))
 
-	# Output the MD5 for the zip verification
-	print('[+] MD5 of zip data: {}'.format(hashlib.md5(zipdata).hexdigest()))
-	print('[+] Zip data:        {} bytes'.format(len(zipdata)))
+    # Create temp zip file
+    with tempfile.TemporaryDirectory() as tdir:
+        with zipfile.ZipFile(os.path.join(tdir,'tpzip'), 'w', compression=zipfile.ZIP_LZMA) as tpzip:
+            tpzip.write(filename, arcname='temp')
 
-	# Encrypt with AES key/iv
-	aes_enc = AES.new(key, AES.MODE_CBC, iv=iv)
-	cipher_text = aes_enc.encrypt(pad(zipdata, AES.block_size))
-	# Convert to base64
-	b64text = base64.b64encode(cipher_text)
-	print('[+] MD5 of b64 data: {}'.format(hashlib.md5(b64text).hexdigest()))
-	b64text = b64text.decode('utf8')
-	print('[+] Encoded text:    {} characters'.format(len(b64text)))
+        with open(os.path.join(tdir,'tpzip'), 'rb') as tp:
+            zipdata = tp.read()
 
-	if generate != False:
-		if not generate:
-			print('[+] Base64 text:\n')
-			print(b64text)
-		else:
-			print('[+] Writing base64 text to: {}'.format(generate[0]))
-			with open(generate[0], 'w') as f:
-				f.write(b64text)
-		return
-	
-	# Spawn Chrome to inteact with pastebin
-	driver = webdriver.Chrome()
-	driver.get("https://pastebin.com")
-	driver.implicitly_wait(0.5)
-	#Check to make sure we're talking to pastebin
-	title = driver.title
-	assert title == 'Pastebin.com - #1 paste tool since 2002!'
+    # Output the MD5 for the zip verification
+    print('[+] MD5 of zip data: {}'.format(hashlib.md5(zipdata).hexdigest()))
+    print('[+] Zip data:        {} bytes'.format(len(zipdata)))
 
-	# Click on the "Burn after read" checkbox
-	c = driver.find_element(by=By.CSS_SELECTOR, value='div.col-sm-9:nth-child(1) > label:nth-child(3)')
-	ActionChains(driver).scroll_to_element(c).perform()
-	c.click()
+    # Encrypt with AES key/iv
+    aes_enc = AES.new(key, AES.MODE_CBC, iv=iv)
+    cipher_text = aes_enc.encrypt(pad(zipdata, AES.block_size))
+    # Convert to base64
+    if base == 64:
+        b64text = base64.b64encode(cipher_text)
+    elif base == 85:
+        b64text = base64.b85encode(cipher_text)
+    elif base == 32:
+        b64text = base64.b32encode(cipher_text)
+    elif base == 16:
+        b64text = base64.b16encode(cipher_text)
+    print('[+] MD5 of b{} data: {}'.format(base, hashlib.md5(b64text).hexdigest()))
+    b64text = b64text.decode('utf8')
+    print('[+] Encoded text:    {} characters'.format(len(b64text)))
 
-	# Find the input box and shove our data into it
-	inputbox = driver.find_element(by=By.NAME, value='PostForm[text]')
-	pyperclip.copy(b64text)
-	inputbox.send_keys(Keys.CONTROL, 'v')
+    if header:
+        print('[+] Adding {} characters of header'.format(header))
+        b64text = make_header(header) + b64text
 
-	# Find the submit button
-	buttons = driver.find_elements(by=By.CSS_SELECTOR, value="button")
-	submitbutton = None
-	for i in buttons:
-		if i.text == 'Create New Paste':
-			submitbutton = i
+    if generate != False:
+        if not generate:
+            print('[+] Base64 text:\n')
+            print(b64text)
+        else:
+            print('[+] Writing base64 text to: {}'.format(generate[0]))
+            with open(generate[0], 'w') as f:
+                f.write(b64text)
+        return
+    
+    # Spawn Chrome to inteact with pastebin
+    driver = webdriver.Chrome()
+    driver.get("https://pastebin.com")
+    driver.implicitly_wait(0.5)
+    #Check to make sure we're talking to pastebin
+    title = driver.title
+    assert title == 'Pastebin.com - #1 paste tool since 2002!'
 
-	# Submit contents
-	submitbutton.submit()
+    # Click on the "Burn after read" checkbox
+    c = driver.find_element(by=By.CSS_SELECTOR, value='div.col-sm-9:nth-child(1) > label:nth-child(3)')
+    ActionChains(driver).scroll_to_element(c).perform()
+    c.click()
 
-	# Output our upload URL
-	print('[+] Pastebin URL to visit: {}'.format(driver.current_url))
+    # Find the input box and shove our data into it
+    inputbox = driver.find_element(by=By.NAME, value='PostForm[text]')
+    pyperclip.copy(b64text)
+    inputbox.send_keys(Keys.CONTROL, 'v')
 
-	# Kill Chrome
-	driver.quit()
+    # Find the submit button
+    buttons = driver.find_elements(by=By.CSS_SELECTOR, value="button")
+    submitbutton = None
+    for i in buttons:
+        if i.text == 'Create New Paste':
+            submitbutton = i
+
+    # Submit contents
+    submitbutton.submit()
+
+    # Output our upload URL
+    print('[+] Pastebin URL to visit: {}'.format(driver.current_url))
+
+    # Kill Chrome
+    driver.quit()
 
 def main():
-	parser = argparse.ArgumentParser(	prog='PasteSend',
-										description='Allows you to send/get files via Pastebin using Selenium Chrome automation')
-	parser.add_argument('-send', action='store', metavar='INFILE', 
-							help='Send a file')
-	parser.add_argument('-get', action='store', nargs='+', metavar='ARG',
-							help='Get a file. OUTFILE is required, URLKEY is required if interacting with Pastebin')
-	parser.add_argument('-g', action='store', default=False, nargs='*', metavar='STRINGorINFILE',
-							help='Generate to (or recover from) text, rather than interacting with Pastebin. Takes either a string or a filepath')
-	parser.add_argument('-key', action='store', nargs=1, default=CLEAN_KEY,
-							help='The key for AES decryption. This can be a string (or hex of length 64)')
-	parser.add_argument('-iv', action='store', nargs=1, default=CLEAN_IV,
-							help='The iv for AES decryption. This can be a string (or hex of length 16)')
-	parser.add_argument('-random', action='store_true',
-							help='Randomly generate a key/iv pair for use with AES. Only useful for -send')
+    parser = argparse.ArgumentParser(    prog='PasteSend',
+                                        description='Allows you to send/get files via Pastebin using Selenium Chrome automation')
+    parser.add_argument('-send', action='store', metavar='INFILE', 
+                            help='Send a file')
+    parser.add_argument('-get', action='store', nargs='+', metavar='ARG',
+                            help='Get a file. OUTFILE is required, URLKEY is required if interacting with Pastebin')
+    parser.add_argument('-g', action='store', default=False, nargs='*', metavar='STRINGorINFILE',
+                            help='Generate to (or recover from) text, rather than interacting with Pastebin. Takes either a string or a filepath')
+    parser.add_argument('-key', action='store', nargs=1, default=CLEAN_KEY,
+                            help='The key for AES decryption. This can be a string (or hex of length 64)')
+    parser.add_argument('-iv', action='store', nargs=1, default=CLEAN_IV,
+                            help='The iv for AES decryption. This can be a string (or hex of length 16)')
+    parser.add_argument('-random', action='store_true',
+                            help='Randomly generate a key/iv pair for use with AES. Only useful for -send')
+    parser.add_argument('-base', action='store', type=int, choices=[16, 32, 64, 85], default=64,
+                            help='The type of base encoding to use')
+    parser.add_argument('-header', action='store', type=int, default=0,
+                            help='Add a header onto the text to decrease entropy. Value is number of characters to add (send) or remove (get)')
 
-	args = parser.parse_args()
+    args = parser.parse_args()
+    key = args.key[0]
+    iv = args.iv[0]
+    if args.random:
+        key = random.randbytes(32)
+        iv = random.randbytes(16)
+    elif len(key) == 64:
+        key = binascii.unhexlify(key)
+        iv = binascii.unhexlify(iv)
 
-	key = args.key[0]
-	iv = args.iv[0]
-	if args.random:
-		key = random.randbytes(32)
-		iv = random.randbytes(16)
-	elif len(key) == 64:
-		key = binascii.unhexlify(key)
-		iv = binascii.unhexlify(iv)
-
-	if args.send and args.get:
-		print('[!!!] You must specify only --send or --get')
-		parser.print_help()
-	elif args.send:
-		send_file(args.send, args.g, key, iv)
-	elif args.get:
-		if len(args.get) == 1:
-			fget = args.get[0]
-			furl = ''
-		else:
-			fget = args.get[0]
-			furl = args.get[1]
-		get_file(fget, furl, args.g, key, iv)
-	else:
-		parser.print_help()
+    if args.send and args.get:
+        print('[!!!] You must specify only --send or --get')
+        parser.print_help()
+    elif args.send:
+        send_file(args.send, args.g, key, iv, args.base, args.header)
+    elif args.get:
+        if len(args.get) == 1:
+            fget = args.get[0]
+            furl = ''
+        else:
+            fget = args.get[0]
+            furl = args.get[1]
+        get_file(fget, furl, args.g, key, iv, args.base, args.header)
+    else:
+        parser.print_help()
 
 if __name__ == '__main__':
-	main()
+    main()
