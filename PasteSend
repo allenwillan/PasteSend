@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 
 '''
-# This script requires selenium and pycryptodome
+# This script requires selenium, pycryptodome, and pyperclip
 pip3 install selenium
 pip3 install pycryptodome
+pip3 install pyperclip
 
 # Pastebin allows 10 pastes in 24 hours before it blacklists you 24 hours
 # It may also blacklist you based upon "suspicious activity", which this may be
